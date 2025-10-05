@@ -230,9 +230,10 @@ class Afa(nn.Module):
         return out
 
 class conv_block(nn.Module):
-    def __init__(self, in_c, out_c, stride=2):
+    def __init__(self, in_c, out_c, stride=2, is_upsample=False):
         super().__init__()
-
+        self.is_upsample = is_upsample
+        self.upsample = nn.Upsample(scale_factor=2)
         self.conv1 = nn.Conv2d(in_c, out_c, kernel_size=3, padding=1, stride = stride)
         self.bn1 = nn.BatchNorm2d(out_c)
 
@@ -242,6 +243,8 @@ class conv_block(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, inputs):
+        if self.is_upsample:
+            inputs = self.upsample(inputs)
         x = self.conv1(inputs)
         x = self.bn1(x)
         x = self.relu(x)
@@ -284,7 +287,7 @@ class build_afanet(nn.Module):
         self.d4 = conv_block(512, 256, stride=1)
         self.d3 = conv_block(256, 128, stride=1)
         self.d2 = conv_block(128, 64, stride=1)
-        self.d1 = conv_block(64, 32, stride=1)
+        self.d1 = conv_block(64, 32, stride=1, is_upsample=True)
 
         self.mmba4 = MMBA(512)
         self.afa4 = Afa(2, 256)
@@ -328,7 +331,6 @@ class build_afanet(nn.Module):
         afa2 = self.afa2(mmba2, gcm, d3)   # afa2.shape torch.Size([2, 128, 64, 64])
 
         d2 = self.d2(afa2)  # d2.shape torch.Size([2, 64, 64, 64])
-        print(d2.shape)
         mmba1 = self.mmba1(e1, d2)   # mmba1.shape torch.Size([2, 32, 128, 128])
         afa1 = self.afa1(mmba1, gcm, d2)   # afa1.shape torch.Size([2, 64, 128, 128])
         d1 = self.d1(afa1)   # d1.shape torch.Size([2, 32, 128, 128])
