@@ -12,7 +12,9 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from sklearn.model_selection import train_test_split
-import os
+from utils import seeding, create_dir, print_and_save, shuffling, epoch_time, calculate_metrics
+from model import build_afanet
+from metrics import DiceLoss, DiceBCELoss
 
 def load_data(path):
     train_x = sorted(glob(os.path.join(path,'train/images/*.png')))
@@ -106,3 +108,133 @@ def train(model, loader, optimizer, loss_fn, device):
     epoch_precision = epoch_precision/len(loader)
 
     return epoch_loss, [epoch_jac, epoch_f1, epoch_recall, epoch_precision]
+
+
+if __name__ == "__main__":
+    """ Seeding """
+    seeding(42)
+
+    """ Directories """
+    create_dir("/content/drive/MyDrive/afanet_files")
+
+    """ Training logfile """
+    train_log_path = '/content/drive/MyDrive/afanet_files/train_log.txt'
+    if os.path.exists(train_log_path):
+        print("Log file exists")
+    else:
+        train_log = open("files/train_log.txt", "w")
+        train_log.write("\n")
+        train_log.close()
+
+    """ Record Date & Time """
+    datetime_object = str(datetime.datetime.now())
+    print_and_save(train_log_path, datetime_object)
+    print("")
+
+    """ Hyperparameters """
+    image_size = 256
+    size = (image_size, image_size)
+    batch_size = 16
+    num_epochs = 500
+    lr = 1e-4
+    early_stopping_patience = 50
+    checkpoint_path = "/content/drive/MyDrive/afanet_files/checkpoint.pth"
+    path = "/content/drive/MyDrive/clinic_dataset_splitted"
+
+    data_str = f"Image Size: {size}\nBatch Size: {batch_size}\nLR: {lr}\nEpochs: {num_epochs}\n"
+    data_str += f"Early Stopping Patience: {early_stopping_patience}\n"
+    print_and_save(train_log_path, data_str)
+
+    """ Dataset """
+    (train_x, train_y), (valid_x, valid_y), (test_x, test_y) = load_data(path)
+    train_x, train_y = shuffling(train_x, train_y)
+
+    # train_x = train_x[:500]
+    # train_y = train_y[:500]
+    #
+    # valid_x = valid_x[:500]
+    # valid_y = valid_y[:500]
+
+    data_str = f"Dataset Size:\nTrain: {len(train_x)} - Valid: {len(valid_x)} - Test: {len(test_x)}\n"
+    print_and_save(train_log_path, data_str)
+
+    """ Data augmentation: Transforms """
+    transform =  A.Compose([
+        A.Rotate(limit=35, p=0.3),
+        A.HorizontalFlip(p=0.3),
+        A.VerticalFlip(p=0.3),
+        A.CoarseDropout(p=0.3, max_holes=10, max_height=32, max_width=32)
+    ])
+
+    """ Dataset and loader """
+    train_dataset = DATASET(train_x, train_y, size, transform=transform)
+    valid_dataset = DATASET(valid_x, valid_y, size, transform=None)
+
+    # create_dir("data")
+    # for i, (x, y) in enumerate(train_dataset):
+    #     x = np.transpose(x, (1, 2, 0)) * 255
+    #     y = np.transpose(y, (1, 2, 0)) * 255
+    #     y = np.concatenate([y, y, y], axis=-1)
+    #     cv2.imwrite(f"data/{i}.png", np.concatenate([x, y], axis=1))
+
+    train_loader = DataLoader(
+        dataset=train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=2
+    )
+
+    valid_loader = DataLoader(
+        dataset=valid_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=2
+    )
+
+    """ Model """
+    device = torch.device('cuda')
+    model = build_afanet()
+    model = model.to(device)
+    # model.load_state_dict(torch.load(checkpoint_path, map_location=device))
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, verbose=True)
+    loss_fn = DiceBCELoss()
+    loss_name = "BCE Dice Loss"
+    data_str = f"Optimizer: Adam\nLoss: {loss_name}\n"
+    print_and_save(train_log_path, data_str)
+
+    """ Training the model """
+    best_valid_metrics = 0.0
+    early_stopping_count = 0
+
+    for epoch in range(num_epochs):
+        start_time = time.time()
+
+        train_loss, train_metrics = train(model, train_loader, optimizer, loss_fn, device)
+        valid_loss, valid_metrics = evaluate(model, valid_loader, loss_fn, device)
+        scheduler.step(valid_loss)
+
+        if valid_metrics[1] > best_valid_metrics:
+            data_str = f"Valid F1 improved from {best_valid_metrics:2.4f} to {valid_metrics[1]:2.4f}. Saving checkpoint: {checkpoint_path}"
+            print_and_save(train_log_path, data_str)
+
+            best_valid_metrics = valid_metrics[1]
+            torch.save(model.state_dict(), checkpoint_path)
+            early_stopping_count = 0
+
+        elif valid_metrics[1] < best_valid_metrics:
+            early_stopping_count += 1
+
+        end_time = time.time()
+        epoch_mins, epoch_secs = epoch_time(start_time, end_time)
+
+        data_str = f"Epoch: {epoch+1:02} | Epoch Time: {epoch_mins}m {epoch_secs}s\n"
+        data_str += f"\tTrain Loss: {train_loss:.4f} - Jaccard: {train_metrics[0]:.4f} - F1: {train_metrics[1]:.4f} - Recall: {train_metrics[2]:.4f} - Precision: {train_metrics[3]:.4f}\n"
+        data_str += f"\t Val. Loss: {valid_loss:.4f} - Jaccard: {valid_metrics[0]:.4f} - F1: {valid_metrics[1]:.4f} - Recall: {valid_metrics[2]:.4f} - Precision: {valid_metrics[3]:.4f}\n"
+        print_and_save(train_log_path, data_str)
+
+        if early_stopping_count == early_stopping_patience:
+            data_str = f"Early stopping: validation loss stops improving from last {early_stopping_patience} continously.\n"
+            print_and_save(train_log_path, data_str)
+            break
