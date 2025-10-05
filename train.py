@@ -198,7 +198,7 @@ if __name__ == "__main__":
     # model.load_state_dict(torch.load(checkpoint_path, map_location=device))
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, verbose=True)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5)
     loss_fn = DiceBCELoss()
     loss_name = "BCE Dice Loss"
     data_str = f"Optimizer: Adam\nLoss: {loss_name}\n"
