@@ -77,10 +77,7 @@ def train(model, loader, optimizer, loss_fn, device):
 
         optimizer.zero_grad()
         y_pred = model(x)
-        print('y_pred.shape', y_pred.shape)
-        print('y.shape', y.shape)
         loss = loss_fn(y_pred, y)
-        print('loss', loss)
         loss.backward()
         optimizer.step()
         epoch_loss += loss.item()
