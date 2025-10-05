@@ -122,7 +122,7 @@ if __name__ == "__main__":
     if os.path.exists(train_log_path):
         print("Log file exists")
     else:
-        train_log = open("files/train_log.txt", "w")
+        train_log = open('/content/drive/MyDrive/afanet_files/train_log.txt', "w")
         train_log.write("\n")
         train_log.close()
 
