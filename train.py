@@ -90,8 +90,6 @@ def train(model, loader, optimizer, loss_fn, device):
 
         y_pred = torch.sigmoid(y_pred)
         for yt, yp in zip(y, y_pred):
-            print('yt.shape', yt.shape)
-            print('yp.shape', yp.shape)
             score = calculate_metrics(yt, yp)
             batch_jac.append(score[0])
             batch_f1.append(score[1])
