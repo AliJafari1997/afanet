@@ -134,7 +134,7 @@ if __name__ == "__main__":
     """ Hyperparameters """
     image_size = 256
     size = (image_size, image_size)
-    batch_size = 16
+    batch_size = 8
     num_epochs = 500
     lr = 1e-4
     early_stopping_patience = 50
