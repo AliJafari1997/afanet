@@ -268,7 +268,7 @@ class encoder_block(nn.Module):
         x = self.cbam(x)
         return x
 
-class build_afanet(nn.Module):
+class build_model(nn.Module):
     def __init__(self):
         super().__init__()
 
