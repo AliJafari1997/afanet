@@ -268,6 +268,34 @@ class encoder_block(nn.Module):
         x = self.cbam(x)
         return x
 
+class deep_supervision(nn.Module):
+    def __init__(self, in_c1, in_c2, in_c3, in_c4):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_c1, 1, kernel_size=1)
+        self.upsample1 = nn.Upsample(scale_factor=16)
+        self.conv2 = nn.Conv2d(in_c2, 1, kernel_size=1)
+        self.upsample2 = nn.Upsample(scale_factor=8)
+        self.conv3 = nn.Conv2d(in_c3, 1, kernel_size=1)
+        self.upsample3 = nn.Upsample(scale_factor=4)
+        self.conv4 = nn.Conv2d(in_c4, 1, kernel_size=1)
+        self.conv5 = nn.Conv2d(4, 1, kernel_size=1)
+    
+    def forward(self, inp1, inp2, inp3, inp4):
+        out1 = self.conv1(inp1)
+        out1 = self.upsample1(out1)
+
+        out2 = self.conv2(inp2)
+        out2 = self.upsample2(out2)
+
+        out3 = self.conv3(inp3)
+        out3 = self.upsample3(out3)
+
+        out4 = self.conv4(inp4)
+
+        out = torch.cat([out1, out2, out3, out4], dim=1)
+        out = self.conv5(out)
+        return out
+
 class build_model(nn.Module):
     def __init__(self):
         super().__init__()
@@ -301,6 +329,8 @@ class build_model(nn.Module):
         self.mmba1 = MMBA(64)
         self.afa1 = Afa(16, 32)
 
+        self.deep_supervision = deep_supervision(256, 128, 64, 32)
+
         """ Classifier """
         self.outputs = nn.Conv2d(32, 1, kernel_size=1, padding=0)
 
@@ -321,20 +351,27 @@ class build_model(nn.Module):
         afa4 = self.afa4(mmba4, gcm, d5)   # afa4.shape torch.Size([2, 512, 16, 16])
 
         d4 = self.d4(afa4)   # d4.shape torch.Size([2, 256, 16, 16])
+        # print('d4.shape', d4.shape)
 
         mmba3 = self.mmba3(e3, d4)  # mmba3.shape torch.Size([2, 128, 32, 32])
         afa3 = self.afa3(mmba3, gcm, d4)   # afa3.shape torch.Size([2, 256, 32, 32])
 
         d3 = self.d3(afa3)   # d3.shape torch.Size([2, 128, 32, 32])
+        # print('d3.shape', d3.shape)
 
         mmba2 = self.mmba2(e2, d3)   # mmba2.shape torch.Size([2, 64, 64, 64])
         afa2 = self.afa2(mmba2, gcm, d3)   # afa2.shape torch.Size([2, 128, 64, 64])
 
         d2 = self.d2(afa2)  # d2.shape torch.Size([2, 64, 64, 64])
+        # print('d2.shape', d2.shape)
+
         mmba1 = self.mmba1(e1, d2)   # mmba1.shape torch.Size([2, 32, 128, 128])
         afa1 = self.afa1(mmba1, gcm, d2)   # afa1.shape torch.Size([2, 64, 128, 128])
         d1 = self.d1(afa1)   # d1.shape torch.Size([2, 32, 128, 128])
+        # print('d1.shape', d1.shape)
 
         """ Classifier """
-        outputs = self.outputs(d1)
+        # outputs = self.outputs(d1)
+        outputs = self.deep_supervision(d4, d3, d2, d1)
+
         return outputs
