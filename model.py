@@ -287,7 +287,6 @@ class encoder_block(nn.Module):
         return x, p
 
 
-
 class deep_supervision(nn.Module):
     def __init__(self, in_c1, in_c2, in_c3, in_c4, in_c5):
         super().__init__()
@@ -320,14 +319,9 @@ class deep_supervision(nn.Module):
         out3 = self.upsample3(out3)
 
         out4 = self.conv4(inp4)
-        out4 = self.upsample3(out4)
+        out4 = self.upsample4(out4)
 
         out5 = self.conv5(inp5)
-        print(out1.shape)
-        print(out2.shape)
-        print(out3.shape)
-        print(out4.shape)
-        print(out5.shape)
 
         out = torch.cat([out1, out2, out3, out4, out5], dim=1)
         out = self.conv_out(out)
