@@ -202,6 +202,7 @@ class MMBA(nn.Module):
         return out
 
 
+
 class Afa(nn.Module):
     def __init__(self, up_rate, in_c ):
         # in_c: number of encoder's channels
@@ -212,7 +213,7 @@ class Afa(nn.Module):
 
         self.conv_gcm = nn.Conv2d(1024, in_c, kernel_size=1)
 
-        self.conv_dec = nn.ConvTranspose2d(in_c*2 , in_c, kernel_size=2, stride=2, padding=0)
+        self.conv_ups = nn.Upsample(scale_factor=2)
 
 
         self.se = Squeeze_Excitation(in_c)
@@ -233,7 +234,7 @@ class Afa(nn.Module):
     def forward(self, encoder, gcm, decoder):
         gcm = self.upsample1(gcm)
         gcm = self.conv_gcm(gcm)
-        decoder = self.conv_dec(decoder)
+        decoder = self.conv_ups(decoder)
 
         decoder2 = self.non_local(decoder)
 
@@ -245,7 +246,6 @@ class Afa(nn.Module):
 
         out = features + decoder
         return out
-
 
 class conv_block(nn.Module):
     def __init__(self, in_c, out_c):
