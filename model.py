@@ -213,7 +213,8 @@ class Afa(nn.Module):
 
         self.conv_gcm = nn.Conv2d(1024, in_c, kernel_size=1)
 
-        self.conv_ups = nn.Upsample(scale_factor=2)
+        self.dec_upsample = nn.Upsample(scale_factor=2)
+        self.dec_conv = nn.Conv2d(in_c*2, in_c, kernel_size=1)
 
 
         self.se = Squeeze_Excitation(in_c)
@@ -234,9 +235,14 @@ class Afa(nn.Module):
     def forward(self, encoder, gcm, decoder):
         gcm = self.upsample1(gcm)
         gcm = self.conv_gcm(gcm)
-        decoder = self.conv_ups(decoder)
+
+        decoder = self.dec_upsample(decoder)
+
+        decoder = self.dec_conv(decoder)
+
 
         decoder2 = self.non_local(decoder)
+
 
         features = torch.cat((encoder, decoder2, gcm), dim=1)
         features = self.conv_features(features)
@@ -383,7 +389,6 @@ class build_model(nn.Module):
 
 
         mmba4 = self.mmba4(s4, d5)   # mmba4.shape:  torch.Size([2, 512, 32, 32])
-
         afa4 = self.afa4(mmba4, gcm, d5)    # afa4.shape:  torch.Size([2, 512, 32, 32])
 
         d4 = self.d4(afa4)         # d4.shape torch.Size([2, 512, 32, 32])
@@ -410,4 +415,3 @@ class build_model(nn.Module):
         outputs = self.deep_supervision(d5, d4, d3, d2, d1)
 
         # return outputs
-
