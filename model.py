@@ -414,4 +414,4 @@ class build_model(nn.Module):
         # """ Classifier """
         outputs = self.deep_supervision(d5, d4, d3, d2, d1)
 
-        # return outputs
+        return outputs
